@@ -46,49 +46,10 @@ LiveCodeBench Pro evaluates LLMs on their ability to generate solutions for prog
 
 ## How to Use
 
-### Step 1: Implement Your LLM Interface
-
-Create your own LLM class by extending the abstract `LLMInterface` class in `api_interface.py`. Your implementation needs to override the `call_llm` method.
-
-Example:
-```python
-from api_interface import LLMInterface
-
-class YourLLM(LLMInterface):
-    def __init__(self):
-        super().__init__()
-        # Initialize your LLM client or resources here
-        
-    def call_llm(self, user_prompt: str):
-        # Implement your logic to call your LLM with user_prompt
-        # Return a tuple containing (response_text, metadata)
-        
-        # Example:
-        response = your_llm_client.generate(user_prompt)
-        return response.text, response.metadata
-```
-
-You can use the `ExampleLLM` class as a reference, which shows how to integrate with OpenAI's API.
-
-### Step 2: Configure the Benchmark
-
-Edit the `benchmark.py` file to use your LLM implementation:
-
-```python
-from your_module import YourLLM
-
-# Replace this line:
-llm_instance = YourLLM()  # Update with your LLM class
-```
-
-And change the number of judge workers (recommended to <= physical CPU cores).
-
-### Step 3: Run the Benchmark
-
 Execute the benchmark script:
 
 ```bash
-python benchmark.py
+python benchmark.py --model model name
 ```
 
 The script will:
@@ -112,31 +73,56 @@ Please include the following information in your submission:
 
 ### api_interface.py
 
-This file defines the abstract interface for LLM integration:
-- `LLMInterface`: Abstract base class with methods for LLM interaction
-- `ExampleLLM`: Example implementation with OpenAI's GPT-4o
+定义了 LLM 集成的抽象接口：
+- `LLMInterface`: 抽象基类，定义了与 LLM 交互的方法
+- `ExampleLLM`: 使用 OpenAI GPT-4o 的示例实现
+- 提供了标准化的提示词模板，用于生成竞赛编程解决方案
 
 ### benchmark.py
 
-The main benchmarking script that:
-- Loads the dataset
-- Processes each problem through your LLM
-- Extracts C++ code from responses
-- Submits solutions to the judge system
-- Collects results and generates statistics
-- Saves comprehensive results with judge verdicts
+主要的基准测试脚本，负责整个评估流程：
+- 从 Hugging Face 加载 LiveCodeBench-Pro 数据集
+- 通过 LLM 处理每个编程问题
+- 自动从 LLM 响应中提取 C++ 代码
+- 修复常见的 C++ 头文件问题（添加缺失的 #include）
+- 将解决方案提交到集成的判题系统进行评估
+- 收集判题结果并生成全面的统计数据
+- 保存结果到 `benchmark_result.json`
+- 支持从之前的评估中恢复（resume 功能）
+- 提供多线程处理和自动重试机制
 
 ### judge.py
 
-Contains the judge system integration:
-- `Judge`: Abstract base class for judge implementations
-- `LightCPVerifierJudge`: LightCPVerifier integration for local solution evaluation
-- Automatic problem data downloading from Hugging Face
+包含判题系统集成：
+- `Judge`: 判题实现的抽象基类
+- `LightCPVerifierJudge`: LightCPVerifier 集成，用于本地解决方案评估
+- 自动从 Hugging Face 下载问题数据
+- 支持多种编程语言（C++、Python3、PyPy3）
+- 提供详细的统计信息和错误处理
+- 使用 Docker 容器确保隔离的执行环境
 
 ### util.py
 
-Utility functions for code processing:
-- `extract_longest_cpp_code()`: Intelligent C++ code extraction from LLM responses
+代码处理的实用函数：
+- `extract_longest_cpp_code()`: 从 LLM 响应中智能提取 C++ 代码
+- 支持多种代码格式（ fenced 代码块和自由格式）
+- 智能识别包含 #include 的有效代码块
+
+### models.yaml
+
+LLM 模型配置文件：
+- 定义了可用的语言模型及其配置
+- 支持多种 API 提供商（OpenRouter、DeepSeek、GLM、Moonshot 等）
+- 包含温度设置、API 端点和密钥配置
+- 支持高级功能如推理模式（reasoning）和思考模式（thinking）
+
+### statistics_by_difficulty.py
+
+结果分析工具：
+- 按难度级别分析基准测试结果
+- 提供详细的准确率统计
+- 生成每个问题的通过/失败状态报告
+- 支持从结果文件中提取和可视化数据
 
 
 ### Dataset
