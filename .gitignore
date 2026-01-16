@@ -1,2 +1,3 @@
 __pycache__
 benchmark_result.json
+.env
