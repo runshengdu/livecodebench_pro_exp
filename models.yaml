@@ -90,7 +90,7 @@ models:
   - name: deepseek-reasoner
     temperature: 1.0
     base_url: https://api.deepseek.com
-    api_key: "sk-6e2e731a8096447eb1539610e9866791"
+    api_key: "${DEEPSEEK_API_KEY}"
     max_tokens: 65536
 
   
