@@ -453,7 +453,7 @@ def calculate_statistics(problem_set: dict[str, ProblemTestState]) -> dict:
     return statistics
 
 
-def save_results(problem_set: dict[str, ProblemTestState], filename: str = "result.json"):
+def save_results(problem_set: dict[str, ProblemTestState], filename: str = "result.json", update_stats: bool = True):
     results = []
     for problem in problem_set.values():
         result_data = {
@@ -470,7 +470,10 @@ def save_results(problem_set: dict[str, ProblemTestState], filename: str = "resu
         }
         results.append(result_data)
     
-    statistics = calculate_statistics(problem_set)
+    if update_stats:
+        statistics = calculate_statistics(problem_set)
+    else:
+        statistics = {}
     
     output_data = {
         "statistics": statistics,
@@ -593,7 +596,7 @@ if __name__ == "__main__":
                     problem.code = code
                     problem.response_meta = meta
                     problem.token_count = token_count
-                    save_results(problem_set, result_file)
+                    save_results(problem_set, result_file, update_stats=False)
                 except Exception as e:
                     logger.error(f"Error generating solution for {problem.problem_id}: {e}")
         
@@ -614,5 +617,7 @@ if __name__ == "__main__":
                     logger.error(f"Error evaluating problem {problem.problem_id}: {e}")
         
         check_and_retry(problem_set, llm_instance, judge, result_file, max_retries=2)
+        
+        save_results(problem_set, result_file, update_stats=True)
     
     print_stats(dataset, problem_set)
