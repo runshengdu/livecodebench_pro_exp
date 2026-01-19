@@ -517,13 +517,14 @@ def merge_results(problem_set: dict[str, ProblemTestState], saved_set: dict[str,
     resumed_count = 0
     for problem_id, saved_data in saved_set.items():
         if problem_id in problem_set:
-            if saved_data["judge_result"] != "Judging":
+            if saved_data.get("code"):
                 problem_set[problem_id].text_response = saved_data["text_response"]
                 problem_set[problem_id].code = saved_data["code"]
-                problem_set[problem_id].submission_id = saved_data["submission_id"]
-                problem_set[problem_id].judge_result = saved_data["judge_result"]
                 problem_set[problem_id].response_meta = saved_data["response_meta"]
                 problem_set[problem_id].token_count = saved_data.get("token_count")
+                if saved_data.get("judge_result") and saved_data["judge_result"] != "Judging":
+                    problem_set[problem_id].submission_id = saved_data["submission_id"]
+                    problem_set[problem_id].judge_result = saved_data["judge_result"]
                 resumed_count += 1
     return resumed_count
 
@@ -568,7 +569,7 @@ if __name__ == "__main__":
     with LightCPVerifierJudge(worker=worker) as judge:
         problems_to_process = [
             p for p in problem_set.values() 
-            if p.judge_result == "Judging"
+            if p.judge_result == "Judging" and not p.code
         ]
         if problems_to_process:
             print(f"Processing {len(problems_to_process)} remaining problems (parallel={parallel})")
@@ -576,7 +577,7 @@ if __name__ == "__main__":
             print("All problems already completed!")
         
         generation_worker = parallel
-        eval_worker = min(parallel, 10)
+        eval_worker = min(parallel, 5)
         
         with ThreadPoolExecutor(max_workers=generation_worker) as gen_executor:
             futures = {
@@ -596,7 +597,7 @@ if __name__ == "__main__":
                 except Exception as e:
                     logger.error(f"Error generating solution for {problem.problem_id}: {e}")
         
-        problems_with_code = [p for p in problems_to_process if p.code]
+        problems_with_code = [p for p in problem_set.values() if p.code and p.judge_result == "Judging"]
         print(f"Generated {len(problems_with_code)} solutions, starting evaluation (parallel={eval_worker})")
         
         with ThreadPoolExecutor(max_workers=eval_worker) as eval_executor:
