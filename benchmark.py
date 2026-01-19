@@ -146,14 +146,25 @@ class OpenAILLM:
         if "temperature" in self.model_config:
             completion_params["temperature"] = self.model_config["temperature"]
         
+        if "max_tokens" in self.model_config:
+            completion_params["max_tokens"] = self.model_config["max_tokens"]
+        else:
+            completion_params["max_tokens"] = 8192
+        
         if "extra_body" in self.model_config:
             completion_params.update(self.model_config["extra_body"])
         
+        logger.info(f"Generating solution with max_tokens={completion_params['max_tokens']}")
         completion = self.client.chat.completions.create(**completion_params)
         response_content = completion.choices[0].message.content
         prompt_tokens = completion.usage.prompt_tokens
         response_tokens = completion.usage.completion_tokens
         total_tokens = prompt_tokens + response_tokens
+        
+        finish_reason = completion.choices[0].finish_reason
+        if finish_reason == "length":
+            logger.warning(f"Response truncated due to max_tokens limit. Consider increasing max_tokens in models.yaml. Used: {completion_params['max_tokens']}")
+        
         return response_content, str(completion), total_tokens
 
 
@@ -258,7 +269,7 @@ def evaluate_problem(judge: LightCPVerifierJudge, problem: ProblemTestState, pro
 
 
 ABNORMAL_JUDGE_RESULTS = {
-    "Judging", "Judge Failed", "Submit Failed", "No Code", "Problem Not Found",
+    "Judge Failed", "Submit Failed", "No Code", "Problem Not Found",
     "Judge Failed: Network error", "Judge Failed: Compilation Error",
     "Judge Failed: Error: Unknown system error",
     "Judge Failed: Error: Unknown system error -35",
@@ -288,7 +299,7 @@ def check_and_retry(problem_set: dict[str, ProblemTestState], llm_instance, judg
         for problem in problem_set.values():
             if not problem.code:
                 needs_regeneration.append(problem)
-            elif problem.judge_result in ABNORMAL_JUDGE_RESULTS:
+            elif problem.judge_result in ABNORMAL_JUDGE_RESULTS or problem.judge_result == "Judging":
                 needs_reevaluation.append(problem)
         
         if not needs_regeneration and not needs_reevaluation:
@@ -314,6 +325,11 @@ def check_and_retry(problem_set: dict[str, ProblemTestState], llm_instance, judg
             
             regenerated = [p for p in needs_regeneration if p.code]
             logger.info(f"Successfully regenerated {len(regenerated)}/{len(needs_regeneration)} problems")
+            
+            newly_generated = [p for p in regenerated if p.judge_result == "Judging"]
+            if newly_generated:
+                logger.info(f"Adding {len(newly_generated)} newly generated problems to reevaluation queue")
+                needs_reevaluation.extend(newly_generated)
         
         if needs_reevaluation:
             problem_ids = [p.problem_id for p in needs_reevaluation]
@@ -329,12 +345,12 @@ def check_and_retry(problem_set: dict[str, ProblemTestState], llm_instance, judg
                     except Exception as e:
                         logger.error(f"Retry eval error: {e}")
             
-            reevaluated = [p for p in needs_reevaluation if p.judge_result not in ABNORMAL_JUDGE_RESULTS]
+            reevaluated = [p for p in needs_reevaluation if p.judge_result not in ABNORMAL_JUDGE_RESULTS and p.judge_result != "Judging"]
             logger.info(f"Successfully reevaluated {len(reevaluated)}/{len(needs_reevaluation)} problems")
         
         save_results(problem_set, result_file)
     
-    final_abnormal = [p for p in problem_set.values() if not p.code or p.judge_result in ABNORMAL_JUDGE_RESULTS]
+    final_abnormal = [p for p in problem_set.values() if not p.code or p.judge_result in ABNORMAL_JUDGE_RESULTS or p.judge_result == "Judging"]
     if final_abnormal:
         logger.warning(f"Final abnormal problems: {[p.problem_id for p in final_abnormal]}")
     else:
